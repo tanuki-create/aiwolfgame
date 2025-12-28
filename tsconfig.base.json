@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "paths": {
+      "@aiwolf/shared": ["./packages/shared/src/index.ts"],
+      "@aiwolf/fsm": ["./packages/fsm/src/index.ts"],
+      "@aiwolf/llm": ["./packages/llm/src/index.ts"],
+      "@aiwolf/db": ["./packages/db/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
+
