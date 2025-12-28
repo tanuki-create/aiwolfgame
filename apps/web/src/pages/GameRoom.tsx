@@ -44,12 +44,16 @@ export function GameRoom() {
   const [myRole, setMyRole] = useState<string>('');
   const [selectedVoteTarget, setSelectedVoteTarget] = useState<string>('');
   const [hasVoted, setHasVoted] = useState(false);
+  const [voteReason, setVoteReason] = useState<string>(''); // 投票理由
+  const [lastWillText, setLastWillText] = useState<string>(''); // 遺言テキスト
+  const [hasSubmittedLastWill, setHasSubmittedLastWill] = useState(false); // 遺言送信済みフラグ
   const [selectedNightTarget, setSelectedNightTarget] = useState<string>('');
   const [hasActed, setHasActed] = useState(false);
   const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number>(0);
   const [phaseDeadline, setPhaseDeadline] = useState<number>(0);
   const [wolfMessages, setWolfMessages] = useState<WolfChatMessage[]>([]);
   const [wolfMates, setWolfMates] = useState<WolfMate[]>([]);
+  const [gameState, setGameState] = useState<any>(null); // Store full game state for executedPlayerId access
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -131,6 +135,7 @@ export function GameRoom() {
     switch (event.type) {
       case 'ROOM_STATE':
         // Update game state
+        setGameState(event.payload); // Store full game state
         setPhase(event.payload.phase);
         setDayNumber(event.payload.dayNumber);
         setPlayers(event.payload.players);
@@ -157,6 +162,9 @@ export function GameRoom() {
         // Reset vote and action state on phase change
         setHasVoted(false);
         setSelectedVoteTarget('');
+        setVoteReason(''); // Reset vote reason
+        setHasSubmittedLastWill(false); // Reset last will state
+        setLastWillText(''); // Clear last will text
         setHasActed(false);
         setSelectedNightTarget('');
         // Add phase change message
@@ -179,6 +187,25 @@ export function GameRoom() {
           content: event.payload.message,
           timestamp: event.timestamp || Date.now(),
         }]);
+        break;
+
+      case 'DIVINATION_RESULT':
+        // Show divination result (only for seers)
+        if (event.payload.isInitial) {
+          setMessages(prev => [...prev, {
+            id: `divination_${Date.now()}`,
+            playerName: '🔮 Initial Divination',
+            content: event.payload.message,
+            timestamp: event.timestamp || Date.now(),
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            id: `divination_${Date.now()}`,
+            playerName: '🔮 Divination Result',
+            content: event.payload.message,
+            timestamp: event.timestamp || Date.now(),
+          }]);
+        }
         break;
 
       case 'WOLF_CHAT_START':
@@ -206,6 +233,38 @@ export function GameRoom() {
         }]);
         break;
 
+      case 'AI_VOTE':
+        // Display AI vote with reason
+        const aiVotePlayer = gameState?.players.find(p => p.id === event.payload.playerId);
+        const aiVoteTarget = gameState?.players.find(p => p.id === event.payload.targetId);
+        if (aiVotePlayer && aiVoteTarget) {
+          setMessages(prev => [...prev, {
+            id: `ai_vote_${Date.now()}`,
+            playerName: `🗳️ ${aiVotePlayer.name}`,
+            content: `voted for ${aiVoteTarget.name}${event.payload.reason ? `: ${event.payload.reason}` : ''}`,
+            timestamp: event.timestamp || Date.now(),
+          }]);
+        }
+        break;
+
+      case 'VOTE_TIE':
+        setMessages(prev => [...prev, {
+          id: `votetie_${Date.now()}`,
+          playerName: '⚖️ Vote Tied',
+          content: event.payload.message,
+          timestamp: event.timestamp || Date.now(),
+        }]);
+        break;
+
+      case 'NO_EXECUTION':
+        setMessages(prev => [...prev, {
+          id: `noexec_${Date.now()}`,
+          playerName: '⚖️ No Execution',
+          content: event.payload.message,
+          timestamp: event.timestamp || Date.now(),
+        }]);
+        break;
+
       case 'VOTE_RESULT':
         setMessages(prev => [...prev, {
           id: `voteresult_${Date.now()}`,
@@ -225,7 +284,6 @@ export function GameRoom() {
         }]);
         break;
 
-      case 'DIVINATION_RESULT':
       case 'MEDIUM_RESULT':
         setMessages(prev => [...prev, {
           id: `result_${Date.now()}`,
@@ -274,12 +332,28 @@ export function GameRoom() {
     }));
   };
 
+  const submitLastWill = () => {
+    if (!lastWillText.trim() || !ws || hasSubmittedLastWill) return;
+
+    ws.send(JSON.stringify({
+      type: 'SEND_MESSAGE',
+      payload: {
+        content: lastWillText,
+      },
+    }));
+
+    setHasSubmittedLastWill(true);
+  };
+
   const submitVote = () => {
     if (!selectedVoteTarget || !ws || hasVoted) return;
 
     ws.send(JSON.stringify({
       type: 'VOTE',
-      payload: { targetId: selectedVoteTarget },
+      payload: { 
+        targetId: selectedVoteTarget,
+        reason: voteReason || '理由なし', // Include vote reason
+      },
     }));
   };
 
@@ -405,10 +479,57 @@ export function GameRoom() {
             ))}
           </div>
 
+          {/* Last Will Panel - only for executed player */}
+          {phase === 'LAST_WILL' && gameState?.executedPlayerId === userId && (
+            <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#2e1e1e', borderRadius: '8px', border: '2px solid #ff4444' }}>
+              <h4 style={{ marginBottom: '1rem', color: '#ff6666', fontSize: '1.2rem' }}>
+                ⚖️ あなたの遺言
+              </h4>
+              <p style={{ marginBottom: '1rem', color: '#ccc', fontSize: '0.9rem' }}>
+                これが最後の発言です。仲間に情報を残しましょう。
+              </p>
+              <textarea
+                value={lastWillText}
+                onChange={(e) => setLastWillText(e.target.value)}
+                placeholder="遺言を入力してください... (例: 私は占い師です。Aさんは人狼でした。)"
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  marginBottom: '1rem',
+                  background: '#1a1a2e',
+                  border: '1px solid #ff4444',
+                  borderRadius: '4px',
+                  color: 'white',
+                  fontSize: '1rem',
+                  resize: 'vertical',
+                }}
+              />
+              <button
+                onClick={submitLastWill}
+                disabled={!lastWillText.trim() || hasSubmittedLastWill}
+                style={{
+                  padding: '0.75rem 2rem',
+                  background: hasSubmittedLastWill ? '#666' : '#ff4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: hasSubmittedLastWill ? 'default' : 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                }}
+              >
+                {hasSubmittedLastWill ? '✅ 遺言を送信しました' : '⚖️ 遺言を送信'}
+              </button>
+            </div>
+          )}
+
           {/* Voting Panel */}
-          {phase === 'DAY_VOTE' && (
+          {(phase === 'DAY_VOTE' || phase === 'DAY_REVOTE') && (
             <div style={{ marginTop: '2rem', padding: '1rem', background: '#1e1e2e', borderRadius: '8px' }}>
-              <h4 style={{ marginBottom: '1rem', color: '#6c63ff' }}>🗳️ Cast Your Vote</h4>
+              <h4 style={{ marginBottom: '1rem', color: '#6c63ff' }}>
+                {phase === 'DAY_REVOTE' ? '🔄 Re-Vote' : '🗳️ Cast Your Vote'}
+              </h4>
               <select
                 value={selectedVoteTarget}
                 onChange={(e) => setSelectedVoteTarget(e.target.value)}
@@ -428,6 +549,27 @@ export function GameRoom() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              
+              {/* Vote Reason Textarea */}
+              <textarea
+                value={voteReason}
+                onChange={(e) => setVoteReason(e.target.value)}
+                placeholder="投票理由を入力してください... (例: 発言が怪しい、占い結果が黒など)"
+                disabled={hasVoted}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  marginBottom: '0.5rem',
+                  background: '#2a2a3e',
+                  border: '1px solid #444',
+                  borderRadius: '4px',
+                  color: 'white',
+                  minHeight: '60px',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                }}
+              />
+              
               <button
                 className="primary"
                 onClick={submitVote}

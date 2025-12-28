@@ -10,6 +10,9 @@ export type GamePhase =
   | 'ASSIGN_ROLES'       // Generating and assigning roles
   | 'DAY_FREE_TALK'      // Free discussion phase
   | 'DAY_VOTE'           // Voting phase
+  | 'DAY_REVOTE_TALK'    // Tied vote - final statements from tied players
+  | 'DAY_REVOTE'         // Revote among tied players
+  | 'LAST_WILL'          // Executed player's final statement
   | 'NIGHT_WOLF_CHAT'    // Wolves discuss privately (if 2+ wolves alive)
   | 'NIGHT_ACTIONS'      // Night actions (seer, knight, attack)
   | 'DAWN'               // Reveal night results
@@ -33,6 +36,9 @@ export interface GameSeeds {
 export interface PhaseTimers {
   dayFreeTalk: number;    // Free discussion time (ms)
   dayVote: number;        // Voting time (ms)
+  dayRevoteTalk: number;  // Tied players final statement time (ms)
+  dayRevote: number;      // Revote time (ms)
+  lastWill: number;       // Executed player's final statement time (ms)
   nightWolfChat: number;  // Wolf chat time (ms)
   nightActions: number;   // Night action time (ms)
   dawn: number;           // Dawn announcement time (ms)
@@ -47,6 +53,16 @@ export interface GameConfig {
   packs: Pack[];              // Selected packs (empty for base game)
   timers: PhaseTimers;
   randomStart: boolean;       // If true, packs were randomly selected
+}
+
+/**
+ * Vote data
+ */
+export interface VoteData {
+  voterId: string;
+  targetId: string;
+  reason: string;
+  timestamp: number;
 }
 
 /**
@@ -68,7 +84,9 @@ export interface GameState {
   endedAt?: number;
   
   // Action tracking
-  votes: Map<string, string>;  // voterId -> targetId
+  votes: Map<string, VoteData>;  // voterId -> VoteData (changed from targetId)
+  tiedPlayers?: string[];  // Players with tied votes (for revote)
+  executedPlayerId?: string;  // Player who was just executed (for last will)
   nightActions: Map<string, any>;  // playerId -> action
   wolfAttacks: Map<string, string>;  // attackerId -> targetId
   deaths: any[];  // Death records
@@ -84,6 +102,8 @@ export type GameEventType =
   | 'START_VOTE'
   | 'VOTE'
   | 'VOTE_COMPLETE'
+  | 'START_REVOTE'
+  | 'LAST_WILL_COMPLETE'
   | 'CHECK_VICTORY'
   | 'START_NIGHT'
   | 'WOLF_CHAT_MESSAGE'

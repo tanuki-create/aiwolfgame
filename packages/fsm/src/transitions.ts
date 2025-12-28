@@ -18,13 +18,29 @@ export const PHASE_TRANSITIONS: Record<GamePhase, Partial<Record<GameEventType, 
     START_VOTE: 'DAY_VOTE',
   },
   DAY_VOTE: {
-    VOTE_COMPLETE: 'CHECK_END',
-    START_NIGHT: 'NIGHT_WOLF_CHAT', // Skips to NIGHT_ACTIONS if not enough wolves
+    VOTE: 'DAY_VOTE', // Stay in DAY_VOTE when receiving votes
+    VOTE_COMPLETE: 'LAST_WILL', // Go to last will phase after voting
+    START_NIGHT: 'NIGHT_WOLF_CHAT',
+  },
+  DAY_REVOTE_TALK: {
+    START_VOTE: 'DAY_REVOTE', // Move to revote after tied players speak
+  },
+  DAY_REVOTE: {
+    VOTE: 'DAY_REVOTE', // Stay in DAY_REVOTE when receiving votes
+    VOTE_COMPLETE: 'LAST_WILL', // Go to last will phase after revoting
+    START_NIGHT: 'NIGHT_WOLF_CHAT',
+  },
+  LAST_WILL: {
+    LAST_WILL_COMPLETE: 'CHECK_END', // After last will, check victory
   },
   NIGHT_WOLF_CHAT: {
+    WOLF_CHAT_MESSAGE: 'NIGHT_WOLF_CHAT', // Stay in NIGHT_WOLF_CHAT when receiving messages
+    START_NIGHT_ACTIONS: 'NIGHT_ACTIONS',
     NIGHT_COMPLETE: 'NIGHT_ACTIONS',
   },
   NIGHT_ACTIONS: {
+    NIGHT_ACTION: 'NIGHT_ACTIONS', // Stay in NIGHT_ACTIONS when receiving actions
+    WOLF_ATTACK: 'NIGHT_ACTIONS', // Stay in NIGHT_ACTIONS when receiving wolf attacks
     START_DAWN: 'DAWN',
   },
   DAWN: {

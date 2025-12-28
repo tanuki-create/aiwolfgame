@@ -21,7 +21,7 @@ export class APIRoutes {
    */
   async createRoom(req: Request): Promise<Response> {
     try {
-      const body = await req.json();
+      const body = await req.json() as any;
       const { numPlayers = 11, numAI = 10, packs = [], randomStart = false, timers } = body;
 
       const result = await this.roomManager.createRoom({
@@ -149,7 +149,7 @@ export class APIRoutes {
    */
   async joinRoom(roomId: string, req: Request): Promise<Response> {
     try {
-      const body = await req.json();
+      const body = await req.json() as any;
       const { playerName } = body;
 
       if (!playerName) {

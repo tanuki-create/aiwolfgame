@@ -1,9 +1,12 @@
 import type { GameState, GameEvent, GameEventType, GamePhase, TransitionResult } from '@aiwolf/shared';
+import { SeededRNG } from '@aiwolf/shared';
 import { handleStartGame, handleRolesAssigned } from './lobbyHandlers.js';
 import { handleVotePhase, handleVoteSubmission } from './voteHandlers.js';
 import { handleNightActionSubmission, handleNightResolution, handleWolfAttack } from './nightHandlers.js';
 import { handleCheckVictory } from './victoryHandlers.js';
 import { handleWolfChatMessage, handleWolfChatPhase, handleStartNightPhase } from './wolfChatHandlers.js';
+import { handleLastWillPhase } from './lastWillHandlers.js';
+import { RoleAssigner } from '../roles/RoleAssigner.js';
 
 /**
  * Handler function type
@@ -57,6 +60,54 @@ export class HandlerRegistry {
 
     // Day phase handlers (placeholder for now)
     this.register('ASSIGN_ROLES', 'START_DAY', async (state, event) => {
+      // Generate initial divination results for seers
+      const seerResults: any[] = [];
+      const roleAssigner = new RoleAssigner();
+      
+      // Find all seers
+      const seers = roleAssigner.getPlayersByRole(state.roleAssignments, 'SEER');
+      
+      console.log(`[FSM] 🔮 Generating initial divination for ${seers.length} seers...`);
+      
+      for (const seerId of seers) {
+        // Select a random non-werewolf player to divine (using seed for reproducibility)
+        const rng = new SeededRNG(state.seeds.turns + state.dayNumber);
+        const candidates = state.players
+          .filter(p => {
+            const role = state.roleAssignments.get(p.id);
+            // Exclude self, and exclude werewolf faction (WEREWOLF, WHITE_WOLF, MADMAN, FANATIC)
+            return p.id !== seerId && 
+                   role !== 'WEREWOLF' && 
+                   role !== 'WHITE_WOLF' && 
+                   role !== 'MADMAN' &&
+                   role !== 'FANATIC';
+          })
+          .map(p => p.id);
+        
+        if (candidates.length > 0) {
+          const targetId = rng.choice(candidates);
+          const targetPlayer = state.players.find(p => p.id === targetId);
+          const seerPlayer = state.players.find(p => p.id === seerId);
+          
+          if (targetPlayer && seerPlayer) {
+            console.log(`[FSM] 🔮 ${seerPlayer.name} (Seer) receives initial divination: ${targetPlayer.name} is HUMAN`);
+            
+            seerResults.push({
+              type: 'DIVINATION_RESULT',
+              targetPlayerId: seerId,
+              payload: {
+                targetId,
+                targetName: targetPlayer.name,
+                result: 'HUMAN', // Initial divination always returns HUMAN (not werewolf)
+                isInitial: true,
+                dayNumber: 0, // Day 0 = initial
+                message: `🔮 Initial Divination: ${targetPlayer.name} is not a werewolf.`,
+              },
+            });
+          }
+        }
+      }
+      
       return {
         nextState: { 
           ...state, 
@@ -82,6 +133,7 @@ export class HandlerRegistry {
               timestamp: Date.now(),
             },
           },
+          ...seerResults, // Add initial divination results
         ],
       };
     });
@@ -112,6 +164,37 @@ export class HandlerRegistry {
     // Vote handlers
     this.register('DAY_VOTE', 'VOTE', handleVoteSubmission);
     this.register('DAY_VOTE', 'VOTE_COMPLETE', handleVotePhase);
+    
+    // Revote talk -> revote transition
+    this.register('DAY_REVOTE_TALK', 'START_VOTE', async (state, event) => {
+      return {
+        nextState: {
+          ...state,
+          phase: 'DAY_REVOTE',
+          phaseStartTime: Date.now(),
+          phaseDeadline: Date.now() + state.config.timers.dayRevote,
+        },
+        events: [],
+        broadcast: [
+          {
+            type: 'PHASE_CHANGE',
+            payload: {
+              phase: 'DAY_REVOTE',
+              dayNumber: state.dayNumber,
+              phaseDeadline: Date.now() + state.config.timers.dayRevote,
+              message: '🔄 Revote phase begins.',
+            },
+          },
+        ],
+      };
+    });
+    
+    // Revote handlers
+    this.register('DAY_REVOTE', 'VOTE', handleVoteSubmission);
+    this.register('DAY_REVOTE', 'VOTE_COMPLETE', handleVotePhase);
+    
+    // Last will phase handler
+    this.register('LAST_WILL', 'LAST_WILL_COMPLETE', handleLastWillPhase);
     
     // Check end phase
     this.register('CHECK_END', 'CHECK_VICTORY', handleCheckVictory);

@@ -7,6 +7,7 @@
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
     "test": "bun test",
+    "typecheck": "tsc --noEmit",
     "init-db": "bun run src/init-db.ts",
     "simulate": "bun run src/simulation/runner.ts"
   },

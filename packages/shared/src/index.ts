@@ -14,4 +14,5 @@ export * from './constants/index.js';
 
 // Utils
 export * from './utils/seededRandom.js';
+export * from './utils/speechTraits.js';
 

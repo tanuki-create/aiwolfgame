@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const PACKS = ['FOX', 'FREEMASON', 'HUNTER', 'FANATIC', 'WHITE_WOLF'];
+
+interface ProgressState {
+  step: string;
+  current: number;
+  total: number;
+  message: string;
+}
 
 export function RoomCreate() {
   const navigate = useNavigate();
   const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
   const [randomStart, setRandomStart] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [progress, setProgress] = useState<ProgressState | null>(null);
 
   const togglePack = (pack: string) => {
     setSelectedPacks(prev =>
@@ -17,6 +25,8 @@ export function RoomCreate() {
 
   const handleCreate = async () => {
     setCreating(true);
+    setProgress({ step: 'initializing', current: 0, total: 10, message: 'Initializing game...' });
+    
     try {
       const response = await fetch('http://localhost:4000/api/rooms', {
         method: 'POST',
@@ -31,17 +41,55 @@ export function RoomCreate() {
 
       const data = await response.json();
       if (data.success) {
-        navigate(`/room/${data.roomId}`);
+        setProgress({ step: 'complete', current: 10, total: 10, message: 'Game created successfully!' });
+        setTimeout(() => {
+          navigate(`/room/${data.roomId}`);
+        }, 500);
       } else {
         alert(`Failed to create room: ${data.error}`);
+        setCreating(false);
+        setProgress(null);
       }
     } catch (error) {
       console.error('Failed to create room:', error);
       alert('Failed to create room. Make sure the server is running.');
-    } finally {
       setCreating(false);
+      setProgress(null);
     }
   };
+
+  // Simulate progress updates (in real implementation, this would come from WebSocket)
+  useEffect(() => {
+    if (!creating || !progress) return;
+
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (!prev || prev.current >= prev.total) return prev;
+        
+        const newCurrent = prev.current + 1;
+        const messages = [
+          'Setting up game room...',
+          'Generating AI personas (1/10)...',
+          'Generating AI personas (3/10)...',
+          'Generating AI personas (5/10)...',
+          'Generating AI personas (7/10)...',
+          'Generating AI personas (9/10)...',
+          'Generating AI personas (10/10)...',
+          'Assigning roles...',
+          'Initializing game state...',
+          'Finalizing...',
+        ];
+        
+        return {
+          ...prev,
+          current: newCurrent,
+          message: messages[newCurrent - 1] || 'Processing...',
+        };
+      });
+    }, 800);
+
+    return () => clearInterval(interval);
+  }, [creating, progress]);
 
   return (
     <div className="container">
@@ -122,7 +170,57 @@ export function RoomCreate() {
         >
           {creating ? 'Creating...' : 'Create Game'}
         </button>
+
+        {/* Progress Indicator */}
+        {creating && progress && (
+          <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#2a2a3e', borderRadius: '8px' }}>
+            <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#6c63ff', marginBottom: '0.5rem' }}>
+                {progress.message}
+              </div>
+              <div style={{ color: '#aaa', fontSize: '0.9rem' }}>
+                {progress.current} / {progress.total}
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div style={{
+              width: '100%',
+              height: '8px',
+              background: '#1a1a2e',
+              borderRadius: '4px',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${(progress.current / progress.total) * 100}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #6c63ff 0%, #a855f7 100%)',
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+
+            {/* Loading Animation */}
+            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+              <div style={{
+                display: 'inline-block',
+                width: '40px',
+                height: '40px',
+                border: '4px solid #333',
+                borderTop: '4px solid #6c63ff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }} />
+            </div>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

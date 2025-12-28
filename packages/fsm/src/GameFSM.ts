@@ -175,6 +175,9 @@ export class GameFSM {
     const phaseNameMap: Record<GamePhase, string> = {
       'DAY_FREE_TALK': '議論時間',
       'DAY_VOTE': '投票時間',
+      'DAY_REVOTE_TALK': '最終弁明時間',
+      'DAY_REVOTE': '再投票時間',
+      'LAST_WILL': '遺言時間',
       'NIGHT_WOLF_CHAT': '狼チャット時間',
       'NIGHT_ACTIONS': '夜行動時間',
       'DAWN': '夜明け',
@@ -207,6 +210,12 @@ export class GameFSM {
         return 'START_VOTE';
       case 'DAY_VOTE':
         return 'VOTE_COMPLETE';
+      case 'DAY_REVOTE_TALK':
+        return 'START_REVOTE';
+      case 'DAY_REVOTE':
+        return 'VOTE_COMPLETE';
+      case 'LAST_WILL':
+        return 'LAST_WILL_COMPLETE';
       case 'NIGHT_WOLF_CHAT':
         return 'START_NIGHT_ACTIONS';
       case 'NIGHT_ACTIONS':

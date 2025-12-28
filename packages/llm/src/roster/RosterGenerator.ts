@@ -9,29 +9,47 @@ import type { LLMMessage } from '../types.js';
  */
 export class RosterGenerator {
   private client: DeepSeekClient;
+  private progressCallback?: (current: number, total: number, message: string) => void;
 
   constructor(client: DeepSeekClient) {
     this.client = client;
   }
 
   /**
+   * Set progress callback for UI updates
+   */
+  setProgressCallback(callback: (current: number, total: number, message: string) => void): void {
+    this.progressCallback = callback;
+  }
+
+  /**
    * Generate AI personas for a game
    */
   async generate(numAI: number, seed: number): Promise<Persona[]> {
+    console.log(`[RosterGenerator] 🎭 Generating ${numAI} AI personas...`);
+    this.progressCallback?.(0, numAI, 'Starting AI persona generation...');
+    
     // Calculate skill distribution
     const distribution = this.calculateSkillDistribution(numAI);
+    console.log(`[RosterGenerator] 📊 Distribution:`, distribution);
 
     // Generate personas
     const personas: Persona[] = [];
     const usedNames = new Set<string>();
 
     for (let i = 0; i < numAI; i++) {
+      console.log(`[RosterGenerator] Generating persona ${i + 1}/${numAI}...`);
+      this.progressCallback?.(i, numAI, `Generating AI persona ${i + 1}/${numAI}...`);
+      
       const skillLevel = this.selectSkillLevel(distribution, i);
       const persona = await this.generatePersona(skillLevel, usedNames, seed + i);
       personas.push(persona);
       usedNames.add(persona.name);
+      console.log(`[RosterGenerator] ✅ Generated: ${persona.name} (${skillLevel})`);
     }
 
+    console.log(`[RosterGenerator] ✅ All ${numAI} personas generated`);
+    this.progressCallback?.(numAI, numAI, 'All AI personas generated!');
     return personas;
   }
 
@@ -73,12 +91,14 @@ export class RosterGenerator {
     const prompt = this.buildPersonaPrompt(skillLevel, usedNames);
 
     try {
+      console.log(`[RosterGenerator] 📡 Calling DeepSeek API for ${skillLevel} persona...`);
       const response = await this.client.chat([
         { role: 'system', content: 'You are a character designer for a werewolf game.' },
         { role: 'user', content: prompt },
       ]);
 
       const content = this.client.getContent(response);
+      console.log(`[RosterGenerator] ✅ API response received, parsing...`);
       const persona = this.parsePersona(content, skillLevel);
 
       // Validate name uniqueness
@@ -88,6 +108,7 @@ export class RosterGenerator {
 
       return persona;
     } catch (error) {
+      console.warn(`[RosterGenerator] ⚠️  LLM failed for ${skillLevel}, using fallback:`, error);
       // Fallback to template-based generation
       return this.generateFallbackPersona(skillLevel, seed, usedNames);
     }

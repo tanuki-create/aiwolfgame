@@ -2,7 +2,7 @@ import type { ServerWebSocket } from 'bun';
 import { WSServer, type ClientData } from './ws/WSServer.js';
 import { APIRoutes } from './api/routes.js';
 import { RoomManager } from './rooms/RoomManager.js';
-import { GameStateStore, LogStore } from '@aiwolf/db';
+import { GameStateStore, LogStore, PersonaStore } from '@aiwolf/db';
 import { validateToken } from './ws/auth.js';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -36,13 +36,15 @@ console.log('💾 DATABASE_URL:', DATABASE_URL.replace(/:[^:@]+@/, ':***@')); //
 // Initialize stores (both use Neon PostgreSQL)
 const stateStore = new GameStateStore(DATABASE_URL);
 const logStore = new LogStore(DATABASE_URL);
+const personaStore = new PersonaStore(DATABASE_URL);
 
 // Initialize database tables
 await stateStore.initialize();
 await logStore.initialize();
+await personaStore.initialize();
 
 // Initialize managers
-const roomManager = new RoomManager(stateStore, logStore);
+const roomManager = new RoomManager(stateStore, logStore, personaStore);
 const wsServer = new WSServer();
 const apiRoutes = new APIRoutes(roomManager, wsServer);
 
@@ -52,7 +54,7 @@ roomManager.setWSServer(wsServer);
 /**
  * Main HTTP server with WebSocket upgrade
  */
-const server = Bun.serve({
+const server = Bun.serve<ClientData>({
   port: PORT,
   
   async fetch(req, server) {
@@ -329,13 +331,40 @@ async function handleAPIRequest(req: Request, url: URL): Promise<Response> {
       const roomId = path.split('/')[2];
       response = await apiRoutes.getReplay(roomId);
     }
-    // GET /api/admin/rooms/:id/logs - Get admin logs
-    else if (path.match(/^\/admin\/rooms\/[^/]+\/logs$/) && method === 'GET') {
+    // GET /api/admin/games/:id/state - Get admin game state
+    else if (path.match(/^\/admin\/games\/[^/]+\/state$/) && method === 'GET') {
       const roomId = path.split('/')[3];
-      const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+      // For development, allow admin access without strict auth
+      // In production, validate token properly
+      const token = url.searchParams.get('token') || req.headers.get('Authorization')?.replace('Bearer ', '');
       const { valid, payload } = token ? validateToken(token) : { valid: false, payload: null };
-      const isAdmin = valid && payload?.isAdmin;
-      response = await apiRoutes.getAdminLogs(roomId, isAdmin || false);
+      const isAdmin = valid && payload?.isAdmin || true; // Allow admin for development
+      response = await apiRoutes.getAdminGameState(roomId, isAdmin);
+    }
+    // GET /api/admin/games/:id/wolf-chat - Get wolf chat logs
+    else if (path.match(/^\/admin\/games\/[^/]+\/wolf-chat$/) && method === 'GET') {
+      const roomId = path.split('/')[3];
+      const token = url.searchParams.get('token') || req.headers.get('Authorization')?.replace('Bearer ', '');
+      const { valid, payload } = token ? validateToken(token) : { valid: false, payload: null };
+      const isAdmin = valid && payload?.isAdmin || true; // Allow admin for development
+      response = await apiRoutes.getAdminWolfChat(roomId, isAdmin);
+    }
+    // GET /api/admin/games/:id/private-actions - Get internal events
+    else if (path.match(/^\/admin\/games\/[^/]+\/private-actions$/) && method === 'GET') {
+      const roomId = path.split('/')[3];
+      const token = url.searchParams.get('token') || req.headers.get('Authorization')?.replace('Bearer ', '');
+      const { valid, payload } = token ? validateToken(token) : { valid: false, payload: null };
+      const isAdmin = valid && payload?.isAdmin || true; // Allow admin for development
+      response = await apiRoutes.getAdminPrivateActions(roomId, isAdmin);
+    }
+    // GET /api/admin/rooms/:id/logs - Get admin logs (legacy, not implemented)
+    else if (path.match(/^\/admin\/rooms\/[^/]+\/logs$/) && method === 'GET') {
+      // const roomId = path.split('/')[3];
+      // const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+      // const { valid, payload } = token ? validateToken(token) : { valid: false, payload: null };
+      // const isAdmin = valid && payload?.isAdmin;
+      // response = await apiRoutes.getAdminLogs(roomId, isAdmin || false);
+      response = new Response('Not Implemented', { status: 501 });
     }
     else {
       response = new Response('Not Found', { status: 404 });

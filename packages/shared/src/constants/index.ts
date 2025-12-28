@@ -7,6 +7,9 @@ import type { PackConfig } from '../types/roles.js';
 export const DEFAULT_TIMERS: PhaseTimers = {
   dayFreeTalk: 5 * 60 * 1000,    // 5 minutes
   dayVote: 2 * 60 * 1000,        // 2 minutes
+  dayRevoteTalk: 30 * 1000,      // 30 seconds for tied players' final statement
+  dayRevote: 60 * 1000,          // 1 minute for revote
+  lastWill: 30 * 1000,           // 30 seconds for executed player's last will
   nightWolfChat: 3 * 60 * 1000,  // 3 minutes
   nightActions: 1 * 60 * 1000,   // 1 minute
   dawn: 10 * 1000,               // 10 seconds

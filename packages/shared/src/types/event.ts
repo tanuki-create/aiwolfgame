@@ -11,8 +11,11 @@ export type ClientEventType =
   | 'LEAVE_ROOM'
   | 'SEND_MESSAGE'
   | 'SEND_WOLF_MESSAGE'
+  | 'WOLF_CHAT_MESSAGE'
   | 'SUBMIT_VOTE'
+  | 'VOTE'
   | 'SUBMIT_NIGHT_ACTION'
+  | 'NIGHT_ACTION'
   | 'START_GAME'
   | 'TYPING_START'
   | 'TYPING_STOP';
@@ -39,6 +42,9 @@ export type ServerEventType =
   | 'DEATH_ANNOUNCEMENT'
   | 'GAME_END'
   | 'TYPING_INDICATOR'
+  | 'AI_VOTE'
+  | 'AI_NIGHT_ACTION'
+  | 'AI_WOLF_ATTACK'
   | 'ERROR';
 
 export interface ServerEvent {

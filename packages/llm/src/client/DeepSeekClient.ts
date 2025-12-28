@@ -17,9 +17,9 @@ export class DeepSeekClient {
     timeout?: number;
   }) {
     this.apiKey = config.apiKey;
-    this.baseURL = config.baseURL || 'https://api.deepseek.com/v1';
+    this.baseURL = config.baseURL || 'https://api.deepseek.com';
     this.model = config.model || 'deepseek-chat';
-    this.timeout = config.timeout || 8000; // 8 seconds default
+    this.timeout = config.timeout || 10000; // 10 seconds default
   }
 
   /**
@@ -34,6 +34,9 @@ export class DeepSeekClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
+      console.log(`[DeepSeek API] Sending request to ${this.baseURL}/chat/completions`);
+      console.log(`[DeepSeek API] Model: ${this.model}, Tools: ${tools ? tools.length : 0}, Timeout: ${this.timeout}ms`);
+      
       const response = await fetch(`${this.baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -56,6 +59,8 @@ export class DeepSeekClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        console.error(`[DeepSeek API] HTTP Error: ${response.status} ${response.statusText}`);
+        
         if (response.status === 429) {
           throw new LLMError(
             'Rate limit exceeded',
@@ -65,6 +70,7 @@ export class DeepSeekClient {
         }
         
         const errorData = await response.json().catch(() => ({}));
+        console.error(`[DeepSeek API] Error data:`, errorData);
         throw new LLMError(
           `API error: ${response.statusText}`,
           'NETWORK',
@@ -73,11 +79,14 @@ export class DeepSeekClient {
       }
 
       const data = await response.json();
+      console.log(`[DeepSeek API] ✅ Success - Usage:`, (data as any).usage);
+      
       return data as ChatResponse;
     } catch (error: any) {
       clearTimeout(timeoutId);
 
       if (error.name === 'AbortError') {
+        console.error(`[DeepSeek API] ❌ Timeout after ${this.timeout}ms`);
         throw new LLMError(
           `Request timeout after ${this.timeout}ms`,
           'TIMEOUT',
@@ -89,6 +98,7 @@ export class DeepSeekClient {
         throw error;
       }
 
+      console.error(`[DeepSeek API] ❌ Unknown error:`, error);
       throw new LLMError(
         'Unknown error occurred',
         'UNKNOWN',
